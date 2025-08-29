@@ -2,7 +2,7 @@
   command = "npm run build"
   publish = "build/client"
 
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+# Route all requests through the Edge Function
+[[edge_functions]]
+  function = "handler"
+  path = "/*"
