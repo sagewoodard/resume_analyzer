@@ -2,8 +2,7 @@
   command = "npm run build"
   publish = "build/client"
 
-# Send every route to the Node function "server"
-[[redirects]]
-  from = "/*"
-  to = "/.netlify/functions/server"
-  status = 200
+# Route all requests through the Edge Function
+[[edge_functions]]
+  function = "handler"
+  path = "/*"
