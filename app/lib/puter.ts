@@ -74,7 +74,8 @@ interface PuterStore {
     ) => Promise<AIResponse | undefined>;
     feedback: (
       path: string,
-      message: string
+      message: string,
+      opts?: { model?: string }
     ) => Promise<AIResponse | undefined>;
     img2txt: (
       image: string | File | Blob,
@@ -321,38 +322,64 @@ export const usePuterStore = create<PuterStore>((set, get) => {
       setError("Puter.js not available");
       return;
     }
-    // return puter.ai.chat(prompt, imageURL, testMode, options);
     return puter.ai.chat(prompt, imageURL, testMode, options) as Promise<
       AIResponse | undefined
     >;
   };
 
-  const feedback = async (path: string, message: string) => {
+  // ---------- FEEDBACK WITH MODEL FALLBACKS ----------
+  const FEEDBACK_MODELS = [
+    "gpt-5-chat-latest",
+    "gpt-5",
+    "gpt-4o",
+    "gpt-4o-mini",
+    "claude-sonnet-4",
+    "claude-opus-4",
+    "claude-3-7-sonnet",
+    "claude-3-5-sonnet",
+    "gemini-2.0-flash",
+    "mistral-large-latest",
+  ];
+
+  const feedback = async (
+    path: string,
+    message: string,
+    opts?: { model?: string }
+  ) => {
     const puter = getPuter();
     if (!puter) {
       setError("Puter.js not available");
       return;
     }
 
-    return puter.ai.chat(
-      [
-        {
-          role: "user",
-          content: [
+    const candidates = opts?.model ? [opts.model] : FEEDBACK_MODELS;
+
+    let lastErr: unknown = null;
+    for (const model of candidates) {
+      try {
+        const res = await puter.ai.chat(
+          [
             {
-              type: "file",
-              puter_path: path,
-            },
-            {
-              type: "text",
-              text: message,
+              role: "user",
+              content: [
+                { type: "file", puter_path: path },
+                { type: "text", text: message },
+              ],
             },
           ],
-        },
-      ],
-      { model: "claude-3-7-sonnet" }
-    ) as Promise<AIResponse | undefined>;
+          { model }
+        );
+        return res as Promise<AIResponse | undefined>;
+      } catch (e) {
+        console.warn(`[puter.ai.chat] model ${model} failed:`, e);
+        lastErr = e;
+      }
+    }
+
+    console.error("[puter.ai.chat] all candidate models failed", lastErr);
+    return undefined;
   };
+  // ---------------------------------------------------
 
   const img2txt = async (image: string | File | Blob, testMode?: boolean) => {
     const puter = getPuter();
@@ -438,7 +465,8 @@ export const usePuterStore = create<PuterStore>((set, get) => {
         testMode?: boolean,
         options?: PuterChatOptions
       ) => chat(prompt, imageURL, testMode, options),
-      feedback: (path: string, message: string) => feedback(path, message),
+      feedback: (path: string, message: string, opts?: { model?: string }) =>
+        feedback(path, message, opts),
       img2txt: (image: string | File | Blob, testMode?: boolean) =>
         img2txt(image, testMode),
     },
